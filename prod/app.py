@@ -107,8 +107,36 @@ def load_cached_model():
             
             if reference_embeddings is not None:
                 st.success("✅ Embeddings de referencia cargados correctamente")
-                st.write(f"📐 Dimensiones: {reference_embeddings.shape}")
-                st.write(f"📊 Tipo de datos: {reference_embeddings.dtype}")
+                
+                # Verificar el tipo de datos cargados
+                st.write(f"🔍 Tipo de objeto cargado: {type(reference_embeddings)}")
+                
+                # Si es una tupla o lista, extraer el tensor
+                if isinstance(reference_embeddings, (tuple, list)):
+                    st.warning(f"⚠️ Se cargó una {type(reference_embeddings).__name__} con {len(reference_embeddings)} elementos")
+                    for i, item in enumerate(reference_embeddings):
+                        st.write(f"  Elemento {i}: {type(item)} - {getattr(item, 'shape', 'sin shape')}")
+                    
+                    # Intentar extraer el tensor principal
+                    if len(reference_embeddings) > 0:
+                        # Buscar el primer tensor en la tupla/lista
+                        for item in reference_embeddings:
+                            if torch.is_tensor(item):
+                                reference_embeddings = item
+                                st.info("✅ Tensor extraído de la tupla/lista")
+                                break
+                        else:
+                            st.error("❌ No se encontró tensor válido en la tupla/lista")
+                            reference_embeddings = None
+                
+                # Verificar si ahora tenemos un tensor válido
+                if reference_embeddings is not None and torch.is_tensor(reference_embeddings):
+                    st.write(f"📐 Dimensiones: {reference_embeddings.shape}")
+                    st.write(f"📊 Tipo de datos: {reference_embeddings.dtype}")
+                    st.write(f"🔢 Rango: [{reference_embeddings.min():.4f}, {reference_embeddings.max():.4f}]")
+                elif reference_embeddings is not None:
+                    st.error(f"❌ Objeto cargado no es un tensor: {type(reference_embeddings)}")
+                    reference_embeddings = None
             
         except FileNotFoundError as e:
             st.error(f"❌ Archivo no encontrado: {e}")
