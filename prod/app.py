@@ -80,10 +80,35 @@ def load_cached_model():
             abs_path = os.path.abspath(embeddings_path)
             st.write(f"🔄 Intentando cargar desde: `{abs_path}`")
             
-            reference_embeddings = torch.load(embeddings_path, map_location='cpu')
-            st.success("✅ Embeddings de referencia cargados correctamente")
-            st.write(f"📐 Dimensiones: {reference_embeddings.shape}")
-            st.write(f"📊 Tipo de datos: {reference_embeddings.dtype}")
+            # Método 1: Intentar con weights_only=False (para archivos confiables)
+            try:
+                reference_embeddings = torch.load(embeddings_path, map_location='cpu', weights_only=False)
+                st.success("✅ Embeddings cargados con weights_only=False")
+            except Exception as e1:
+                st.warning(f"⚠️ Método 1 falló: {str(e1)[:100]}...")
+                
+                # Método 2: Intentar con safe_globals
+                try:
+                    import numpy as np
+                    with torch.serialization.safe_globals([np.core.multiarray._reconstruct]):
+                        reference_embeddings = torch.load(embeddings_path, map_location='cpu')
+                    st.success("✅ Embeddings cargados con safe_globals")
+                except Exception as e2:
+                    st.warning(f"⚠️ Método 2 falló: {str(e2)[:100]}...")
+                    
+                    # Método 3: Intentar agregar globals manualmente
+                    try:
+                        torch.serialization.add_safe_globals([np.core.multiarray._reconstruct])
+                        reference_embeddings = torch.load(embeddings_path, map_location='cpu')
+                        st.success("✅ Embeddings cargados con add_safe_globals")
+                    except Exception as e3:
+                        st.error(f"❌ Todos los métodos fallaron. Último error: {e3}")
+                        raise e3
+            
+            if reference_embeddings is not None:
+                st.success("✅ Embeddings de referencia cargados correctamente")
+                st.write(f"📐 Dimensiones: {reference_embeddings.shape}")
+                st.write(f"📊 Tipo de datos: {reference_embeddings.dtype}")
             
         except FileNotFoundError as e:
             st.error(f"❌ Archivo no encontrado: {e}")
@@ -95,6 +120,15 @@ def load_cached_model():
         except Exception as e:
             st.error(f"❌ Error al cargar embeddings: {e}")
             st.code(traceback.format_exc())
+            st.write("🔧 **Regenerando embeddings compatibles...**")
+            # Si falla la carga, generar nuevos embeddings
+            try:
+                reference_embeddings = generate_reference_embeddings(model, idx_to_class)
+                # Guardar los nuevos embeddings
+                torch.save(reference_embeddings, embeddings_path)
+                st.success("✅ Nuevos embeddings generados y guardados")
+            except Exception as regen_error:
+                st.error(f"❌ Error al regenerar: {regen_error}")
 
         return model, idx_to_class, reference_embeddings, None
         
